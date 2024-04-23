@@ -11,6 +11,7 @@ namespace MandelbrotSet
         private GraphicsDeviceManager _graphics;
         private QuadRenderer _quadDrawer;
         private SpriteBatch _spriteBatch;
+        private RenderTarget2D _tempTarget;
 
         private Effect _mandelbrotShader;
 
@@ -30,6 +31,7 @@ namespace MandelbrotSet
 
             Window.AllowUserResizing = true;
             Window.ClientSizeChanged += new EventHandler<EventArgs>(Window_ClientSizeChanged);
+            _graphics.GraphicsProfile = GraphicsProfile.HiDef;
         }
 
         protected override void Initialize()
@@ -40,14 +42,18 @@ namespace MandelbrotSet
             _font = Content.Load<SpriteFont>("font");
             _transform = _mandelbrotShader.Parameters["worldPosition"];
             _colorMapExp = _mandelbrotShader.Parameters["colorMapExp"];
+            _tempTarget = new RenderTarget2D(GraphicsDevice, _graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight);
             base.Initialize();
             ToggleBorderless();
         }
 
         int prevScrollValue = 0;
         Point prevMouseLoc;
-
         KeyboardState prevKb;
+
+        bool needsRefresh = true;
+        int refreshes = 0;
+
 
         protected override void Update(GameTime gameTime)
         {
@@ -55,7 +61,10 @@ namespace MandelbrotSet
             KeyboardState kb = Keyboard.GetState();
             MouseState ms = Mouse.GetState();
 
-            const float moveSpeed = -1f;
+            const float moveSpeed = 100f;
+
+            int oldQEval = _colorMapExpValue;
+            Vector3 oldCamPos = _camLoc;
 
             float moveMulti = MathF.Sqrt(_camLoc.Z);
 
@@ -74,11 +83,11 @@ namespace MandelbrotSet
             if (kb.IsKeyDown(Keys.S))
                 _camLoc.Y += moveSpeed * moveMulti;
             if (kb.IsKeyDown(Keys.A))
-                _camLoc.X += moveSpeed * moveMulti;
-            if (kb.IsKeyDown(Keys.D))
                 _camLoc.X -= moveSpeed * moveMulti;
+            if (kb.IsKeyDown(Keys.D))
+                _camLoc.X += moveSpeed * moveMulti;
             if (ms.LeftButton == ButtonState.Pressed)
-                _camLoc += new Vector3((ms.Position - prevMouseLoc).ToVector2() * new Vector2(-1, 1),0);
+                _camLoc += new Vector3((prevMouseLoc - ms.Position).ToVector2(),0);
 
 
 
@@ -94,9 +103,12 @@ namespace MandelbrotSet
             {
                 ZoomChanged(oldZoom, _camLoc.Z, ms.Position.ToVector2());
             }
+            
+            if(_camLoc != oldCamPos || _colorMapExpValue != oldQEval)
+            {
+                needsRefresh = true;
+            }
 
-            _transform.SetValue(_camLoc);
-            _colorMapExp.SetValue(_colorMapExpValue);
             //Debug.WriteLine(_camLoc);
             //prep next frame
             prevScrollValue = ms.ScrollWheelValue;
@@ -111,20 +123,59 @@ namespace MandelbrotSet
 
             Vector2 offset = ((old - @new) * (target + _camLoc.XY())) / @new;
             _camLoc = new Vector3(new Vector2(_camLoc.X, _camLoc.Y) + offset, _camLoc.Z);//still broken but close enuff to working
-
         }
+
+        private static readonly Vector2[] Offsets = new Vector2[]
+        {
+            new(0.25f,0.25f),
+            new(0.25f,0.75f),
+            new(0.75f,0.25f),
+            new(0.75f,0.75f),
+        };
 
         protected override void Draw(GameTime gameTime)
         {
-            //drawing
-            _mandelbrotShader.CurrentTechnique.Passes[0].Apply();
+            if(!needsRefresh)
+            {
+                ApplyRenderTarget();
+                return;
+            }
+            needsRefresh = false;
+            refreshes++;
+
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
-            _quadDrawer.SetSize(-Vector2.One, Vector2.One);
-            _quadDrawer.Draw(GraphicsDevice);
+            GraphicsDevice.BlendState = BlendState.Additive;
+
+            GraphicsDevice.SetRenderTarget(_tempTarget);
+            //drawing
+            for (int i = 0; i < Offsets.Length; i++)
+            {
+                DrawMBQuad(Offsets[i]);
+            }
+
 
             _spriteBatch.Begin();
-            _spriteBatch.DrawString(_font, $"Color Exp (Q & E): {_colorMapExpValue}\nCamera Position (WASD / Click + Drag): {_camLoc.X}, {_camLoc.Y}\nZoom (Scroll): {1 / _camLoc.Z}", Vector2.One * 16, Color.White);
+            _spriteBatch.DrawString(_font, $"Color Exp (Q & E): {_colorMapExpValue}\nCamera Position (WASD / Click + Drag): {_camLoc.X}, {_camLoc.Y}\nZoom (Scroll): {1 / _camLoc.Z}\nRefreshes: {refreshes}", Vector2.One * 16, Color.White);
             _spriteBatch.End();
+
+            GraphicsDevice.SetRenderTarget(null);
+            ApplyRenderTarget();
+            void ApplyRenderTarget()
+            {
+                GraphicsDevice.SetRenderTarget(null);
+                _spriteBatch.Begin();
+                _spriteBatch.Draw(_tempTarget, Vector2.Zero, Color.White);
+                _spriteBatch.End();
+            }
+
+            void DrawMBQuad(Vector2 offset)
+            {
+                _transform.SetValue(new Vector3(_camLoc.XY() + offset, _camLoc.Z));
+                _colorMapExp.SetValue(_colorMapExpValue);
+
+                _mandelbrotShader.CurrentTechnique.Passes[0].Apply();
+                _quadDrawer.Draw(GraphicsDevice);
+            }
 
             base.Draw(gameTime);
         }
@@ -149,8 +200,7 @@ namespace MandelbrotSet
             }
 
             _graphics.ApplyChanges();
-
-            Window_ClientSizeChanged(this, null);
+            _tempTarget = new RenderTarget2D(GraphicsDevice, _graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight);
         }
 
         public void Window_ClientSizeChanged(object sender, EventArgs e)

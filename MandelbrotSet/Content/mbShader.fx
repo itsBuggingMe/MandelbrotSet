@@ -94,13 +94,10 @@ float4 mandelbrotcalc(float2 coord)
     return forceColor(iter / 256.0);
 }
 
-
 float4 MainPS(VertexShaderOutput input) : COLOR
-{
+{//fuck AA
     float2 tmp = input.Position.xy + worldPosition.xy;
-    float2 c1 = (tmp + float2(0, 0)) * worldPosition.z;
-    
-    return mandelbrotcalc(c1);
+    return mandelbrotcalc(tmp * worldPosition.z) * 0.5f;
 }
 
 technique BasicColorDrawing
