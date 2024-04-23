@@ -3,8 +3,8 @@
 	#define VS_SHADERMODEL vs_4_0
 	#define PS_SHADERMODEL ps_4_0
 #else
-	#define VS_SHADERMODEL vs_4_0_level_9_1
-	#define PS_SHADERMODEL ps_4_0_level_9_1
+	#define VS_SHADERMODEL vs_5_0
+	#define PS_SHADERMODEL ps_5_0
 #endif
 
 int worldPositionXa;
@@ -13,6 +13,7 @@ int worldPositionYa;
 int worldPositionYb;
 int worldPositionZa;
 int worldPositionZb;
+
 int colorMapExp;
 
 struct VertexShaderInput
@@ -42,62 +43,46 @@ float4 forceColor(float norm)
     norm = 1 - norm;
     norm = pow(norm, colorMapExp);
     
-    int rgb = (1 - norm) * 1024;
-    float rgbNorm = rgb % 256 / 255.0;
+    float rgb = norm * 1024;
+    float r = saturate(1 - abs(rgb - 512) * 0.00390625);
+    float g = saturate(1 - abs(rgb - 256) * 0.00390625);
+    float b = saturate(1 - abs(rgb - 768) * 0.00390625);
     
-    //rgb in range [0, 1024)
-    
-    if (rgb < 256)
-    { //^G
-        return float4(1, rgbNorm, 0, 1);
-    }
-    if (rgb < 512)
-    { //↓R
-        return float4(1 - rgbNorm, 1, 0, 1);
-    }
-    if (rgb < 768)
-    { //^B
-        return float4(0, 1, rgbNorm, 1);
-    }
-    return float4(rgbNorm, 1, 1, 1);
+    return float4(r, g, b, 1);
 }
+
 
 
 float4 mandelbrotcalc(double2 coord)
 {
-	/* Source: https://en.wikipedia.org/wiki/Mandelbrot_set
-	x0 := scaled x coordinate of pixel (scaled to lie in the Mandelbrot X scale (-2.00, 0.47))
-    y0 := scaled y coordinate of pixel (scaled to lie in the Mandelbrot Y scale (-1.12, 1.12))
-    x := 0.0
-    y := 0.0
-    iteration := 0
-    max_iteration := 1000
-    while (x^2 + y^2 ≤ 2^2 AND iteration < max_iteration) do
-        xtemp := x^2 - y^2 + x0
-        y := 2*x*y + y0
-        x := xtemp
-        iteration := iteration + 1
-	*/
-    
     double x = 0;
+    double xSq = 0;
     double y = 0;
+    double ySq = 0;
+    
     int iter = 0;
-	
+    
+    const int maxIter = 128;
+    const float maxIterInv = 1.0 / maxIter;
 
-    while (dot(x, y) <= 4 && iter < 256)
+    while (xSq + ySq < 4.0 && iter < maxIter)
     {
-        double xTemp = x * x - y * y + coord.x;
+        double xTemp = xSq - ySq + coord.x;
         y = 2 * x * y + coord.y;
         x = xTemp;
+        xSq = x * x;
+        ySq = y * y;
         iter++;
     }
-    
-    if (iter == 255)
+
+    float norm = iter * maxIterInv;
+    if (norm >= 1.0)
     {
-        return float4(0,0,0,1);
+        return float4(0, 0, 0, 1);
     }
-    return forceColor(iter / 256.0);
+    return forceColor(norm);
 }
+
 
 float4 MainPS(VertexShaderOutput input) : COLOR
 {//fuck AA
@@ -108,7 +93,7 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     );
     
     double2 tmp = input.Position.xy + position.xy;
-    return mandelbrotcalc(tmp * position.z) * 0.5f;
+    return mandelbrotcalc(tmp * position.z);
 }
 
 technique BasicColorDrawing
