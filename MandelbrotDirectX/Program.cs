@@ -1,3 +1,2 @@
-﻿
-using var game = new MandelbrotSet.MBSetGame();
+﻿using var game = new MandelbrotSet.MBSetGame();
 game.Run();

@@ -14,7 +14,8 @@ namespace MandelbrotSet
         private SpriteBatch _spriteBatch;
         private RenderTarget2D _tempTarget;
 
-        private Effect _mandelbrotShader;
+        private Effect _mandelbrotShaderOther;
+        private Effect _mandelbrotShaderActive;
 
         private (EffectParameter, EffectParameter) _worldPositionX;
         private (EffectParameter, EffectParameter) _worldPositionY;
@@ -43,17 +44,24 @@ namespace MandelbrotSet
         {
             _quadDrawer = new();
             _spriteBatch = new(GraphicsDevice);
-            _mandelbrotShader = Content.Load<Effect>("mbShader");
+            _mandelbrotShaderActive = Content.Load<Effect>("mbShader");
+            _mandelbrotShaderOther = Content.Load<Effect>("mbShaderRAINBOW");
+
+            UpdateParameters();
+
             _font = Content.Load<SpriteFont>("font");
 
-            _worldPositionX = (_mandelbrotShader.Parameters["worldPositionXa"], _mandelbrotShader.Parameters["worldPositionXb"]);
-            _worldPositionY = (_mandelbrotShader.Parameters["worldPositionYa"], _mandelbrotShader.Parameters["worldPositionYb"]);
-            _worldPositionZ = (_mandelbrotShader.Parameters["worldPositionZa"], _mandelbrotShader.Parameters["worldPositionZb"]);
-
-            _colorMapExp = _mandelbrotShader.Parameters["colorMapExp"];
             _tempTarget = new RenderTarget2D(GraphicsDevice, _graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight);
             base.Initialize();
             ToggleBorderless();
+        }
+
+        private void UpdateParameters()
+        {
+            _worldPositionX = (_mandelbrotShaderActive.Parameters["worldPositionXa"], _mandelbrotShaderActive.Parameters["worldPositionXb"]);
+            _worldPositionY = (_mandelbrotShaderActive.Parameters["worldPositionYa"], _mandelbrotShaderActive.Parameters["worldPositionYb"]);
+            _worldPositionZ = (_mandelbrotShaderActive.Parameters["worldPositionZa"], _mandelbrotShaderActive.Parameters["worldPositionZb"]);
+            _colorMapExp = _mandelbrotShaderActive.Parameters["colorMapExp"];
         }
 
         int prevScrollValue = 0;
@@ -69,8 +77,6 @@ namespace MandelbrotSet
             //input
             KeyboardState kb = Keyboard.GetState();
             MouseState ms = Mouse.GetState();
-
-            const float moveSpeed = 100f;
 
             int oldQEval = _colorMapExpValue;
             (double, double, double) oldCamPos = (_camX, _camY, _camZ);
@@ -88,6 +94,12 @@ namespace MandelbrotSet
             if (kb.IsKeyDown(Keys.Escape))
                 Exit();
 
+            if (!prevKb.IsKeyDown(Keys.W) && kb.IsKeyDown(Keys.W))
+            {
+                (_mandelbrotShaderActive, _mandelbrotShaderOther) = (_mandelbrotShaderOther, _mandelbrotShaderActive);
+                UpdateParameters();
+                needsRefresh = true;
+            }
 
             if (ms.LeftButton == ButtonState.Pressed)
             {
@@ -95,8 +107,6 @@ namespace MandelbrotSet
                 _camX += off.X;
                 _camY += off.Y;
             }
-
-
 
             double oldZoom = _camZ;
             if (kb.IsKeyDown(Keys.I) || ms.ScrollWheelValue - prevScrollValue < 0)
@@ -150,7 +160,7 @@ namespace MandelbrotSet
             DrawMBQuad(0,0);
 
             _spriteBatch.Begin();
-            _spriteBatch.DrawString(_font, $"Color Exp (Q & E): {_colorMapExpValue}\nCamera Position (Click + Drag): {_camX}, {_camY}\nZoom (Scroll): {1 / _camZ}\nRefreshes: {refreshes}", Vector2.One * 16, Color.White);
+            _spriteBatch.DrawString(_font, $"Color Exp (Q & E): {_colorMapExpValue}\nCamera Position (Click + Drag): {_camX}, {_camY}\nZoom (Scroll): {1 / _camZ}\nRefreshes: {refreshes}\nToggle Mode(W)", Vector2.One * 16, Color.White);
             _spriteBatch.End();
 
             GraphicsDevice.SetRenderTarget(null);
@@ -174,7 +184,7 @@ namespace MandelbrotSet
                 _worldPositionZ.Item1.SetValue(new DoubleToInt(_camZ).IntegerA);
                 _worldPositionZ.Item2.SetValue(new DoubleToInt(_camZ).IntegerB);
                 
-                _mandelbrotShader.CurrentTechnique.Passes[0].Apply();
+                _mandelbrotShaderActive.CurrentTechnique.Passes[0].Apply();
                 _quadDrawer.Draw(GraphicsDevice);
             }
 

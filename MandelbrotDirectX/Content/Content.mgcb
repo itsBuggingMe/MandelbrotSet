@@ -26,3 +26,9 @@
 /processorParam:DebugMode=Auto
 /build:mbShader.fx
 
+#begin mbShaderRAINBOW.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:mbShaderRAINBOW.fx
+
