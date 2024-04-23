@@ -18,7 +18,7 @@ namespace MandelbrotSet
         private Vector3 _camLoc = new Vector3(-1225.5021f, -510.8379f, 0.0021845647f);
 
         private EffectParameter _colorMapExp;
-        private int _colorMapExpValue = 4;
+        private int _colorMapExpValue = 2;
 
         private SpriteFont _font;
 
@@ -123,7 +123,7 @@ namespace MandelbrotSet
             _quadDrawer.Draw(GraphicsDevice);
 
             _spriteBatch.Begin();
-            _spriteBatch.DrawString(_font, $"Color Exp (Q): {_colorMapExpValue}\nCamera Position (WASD / Click + Drag): {_camLoc.X}, {_camLoc.Y}\nZoom (Scroll): {1 / _camLoc.Z}", Vector2.One * 16, Color.White);
+            _spriteBatch.DrawString(_font, $"Color Exp (Q & E): {_colorMapExpValue}\nCamera Position (WASD / Click + Drag): {_camLoc.X}, {_camLoc.Y}\nZoom (Scroll): {1 / _camLoc.Z}", Vector2.One * 16, Color.White);
             _spriteBatch.End();
 
             base.Draw(gameTime);
