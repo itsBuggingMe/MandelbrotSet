@@ -22,7 +22,7 @@ namespace MandelbrotSet
         private (EffectParameter, EffectParameter) _worldPositionZ;
         private double _camX = -1225.5021;
         private double _camY = -510.8379;
-        private double _camZ = 0.0021845647f;
+        private double _camZ = 0.0021845647;
 
         private EffectParameter _colorMapExp;
         private int _colorMapExpValue = 2;
@@ -42,6 +42,8 @@ namespace MandelbrotSet
 
         protected override void Initialize()
         {
+            CustomKey<Vector2>.InitalizeType(Vector2.Lerp);
+
             _quadDrawer = new();
             _spriteBatch = new(GraphicsDevice);
             _mandelbrotShaderActive = Content.Load<Effect>("mbShader");
@@ -72,8 +74,10 @@ namespace MandelbrotSet
         int refreshes = 0;
 
 
+
         protected override void Update(GameTime gameTime)
         {
+            const double smallestZoom = 0.0000000000000001;
             //input
             KeyboardState kb = Keyboard.GetState();
             MouseState ms = Mouse.GetState();
@@ -83,23 +87,31 @@ namespace MandelbrotSet
 
             float moveMulti = MathF.Sqrt((float)_camZ);
 
-            if (!prevKb.IsKeyDown(Keys.F11) && kb.IsKeyDown(Keys.F11))
+            if (RisingEdge(Keys.F11))
                 ToggleBorderless();
 
-            if (!prevKb.IsKeyDown(Keys.Q) && kb.IsKeyDown(Keys.Q))
+            if (RisingEdge(Keys.Q))
                 _colorMapExpValue++;
-            if (!prevKb.IsKeyDown(Keys.E) && kb.IsKeyDown(Keys.E))
+            if (RisingEdge(Keys.E))
                 _colorMapExpValue--;
 
             if (kb.IsKeyDown(Keys.Escape))
                 Exit();
 
-            if (!prevKb.IsKeyDown(Keys.W) && kb.IsKeyDown(Keys.W))
+            if (RisingEdge(Keys.W))
             {
                 (_mandelbrotShaderActive, _mandelbrotShaderOther) = (_mandelbrotShaderOther, _mandelbrotShaderActive);
                 UpdateParameters();
                 needsRefresh = true;
             }
+
+            if(RisingEdge(Keys.S))
+            {
+                double mF = Math.Abs(smallestZoom - _camZ) < 0.001 ? 1.1 : 0.9;
+                AnimationPool.Instance.Request().Reset(f => _camZ *= mF, 1, null, new KeyFrame(1, 60 * 5, AnimationType.Cubic));
+            }
+
+            bool RisingEdge(Keys k) => !prevKb.IsKeyDown(k) && kb.IsKeyDown(k);
 
             if (ms.LeftButton == ButtonState.Pressed)
             {
@@ -113,15 +125,19 @@ namespace MandelbrotSet
                 _camZ *= 1.15f;
             if (kb.IsKeyDown(Keys.J) || ms.ScrollWheelValue - prevScrollValue > 0)
                 _camZ *= 0.85f;
+            AnimationPool.Instance.Update(gameTime);
 
-            if(_camZ < 0)
-                _camZ = 0.0001f;
-            if(oldZoom != _camZ)
+            if (_camZ < smallestZoom)
+                _camZ = smallestZoom;
+
+            if (oldZoom != _camZ)
             {
                 ZoomChanged(oldZoom, _camZ, ms.Position.ToVector2());
             }
-            
-            if((_camX, _camY, _camZ) != oldCamPos || _colorMapExpValue != oldQEval)
+
+
+
+            if ((_camX, _camY, _camZ) != oldCamPos || _colorMapExpValue != oldQEval)
             {
                 needsRefresh = true;
             }
@@ -131,6 +147,7 @@ namespace MandelbrotSet
             prevScrollValue = ms.ScrollWheelValue;
             prevMouseLoc = ms.Position;
             prevKb = kb;
+
             base.Update(gameTime);
         }
 
